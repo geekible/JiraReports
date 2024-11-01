@@ -1,0 +1,51 @@
+﻿@page "/"
+@using global::ReportBuilder.Domain.Dto.Credentials
+@rendermode InteractiveServer
+
+@inject Blazored.LocalStorage.ILocalStorageService _localStorage
+@inject NavigationManager _navMan
+
+<PageTitle>Home</PageTitle>
+
+<h1>Login</h1>
+
+<div class="shadow-lg p-3 mb-5 bg-body rounded">
+    <div class="mb-3">
+        <label for="username" class="form-label">Username</label>
+        <input id="username" type="text" class="form-control" @bind="credentials.Username" />
+    </div>
+    
+    <div class="mb-3">
+        <label for="password" class="form-label">Password</label>
+        <input id="password" type="password" class="form-control" @bind="credentials.Password" />
+    </div>
+    
+    <button class="btn btn-outline-success" @onclick="Login">Login</button>
+</div>
+
+@code
+{
+    CredentialsDto credentials = new CredentialsDto();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        credentials = await _localStorage.GetItemAsync<CredentialsDto>("creds");
+        if (!string.IsNullOrEmpty(credentials.Username) && !string.IsNullOrEmpty(credentials.Password))
+        {
+            _navMan.NavigateTo("/reports/jql-report");
+        }
+        else
+        {
+            
+        }
+    }
+
+    private async Task Login()
+    {
+        if (!string.IsNullOrEmpty(credentials.Username) && !string.IsNullOrEmpty(credentials.Password))
+        {
+            await _localStorage.SetItemAsync("creds", credentials);
+            _navMan.NavigateTo("/reports/jql-report");
+        }
+    }
+}

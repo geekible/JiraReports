@@ -1,0 +1,422 @@
+﻿@page "/reports/jql-report"
+@using global::ReportBuilder.Domain.Dto.Jql
+@using global::ReportBuilder.Domain.Dto.Credentials
+@using MediatR
+@using global::ReportBuilder.Application.Mediators.JqlReportMediator.Requests.Queries
+@using global::ReportBuilder.Application.Mediators.ReportExportMediator.Requests.Commands
+@using global::ReportBuilder.Domain.Dto.Report
+@using System.Web
+@using global::ReportBuilder.Application.Mediators.ReportDefinitionMediator.Requests.Queries
+
+@rendermode InteractiveServer
+
+@inject Blazored.LocalStorage.ILocalStorageService _localStorage
+@inject NavigationManager _navManager
+@inject IMediator _mediator
+@inject IJSRuntime JSRuntime
+@inject ILogger<JqlReport> _logger
+
+<h3>Jql Report</h3>
+<hr />
+
+@if (ShowError)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <strong>Error:</strong> @ErrMsg
+        <button type="button" class="btn-close" aria-label="Close" @onclick="() => { ShowError = false; }"></button>
+    </div>
+}
+
+@if (ShowWarning)
+{
+    <div class="alert alert-warning alert-dismissible fade show" role="alert">
+        <strong>Warning:</strong> @WarningMsg
+        <button type="button" class="btn-close" aria-label="Close" @onclick="() => { ShowWarning = false; }"></button>
+    </div>
+}
+
+
+<!--Tabs-->
+<ul class="nav nav-tabs" role="tablist">
+    <!--Report Cfg-->
+    <li class="nav-item" role="presentation">
+        <a class="nav-link active" id="report-cfg-tab" data-bs-toggle="tab" href="#report-cfg-tab-content" role="tab" aria-controls="report-cfg-tab-content" aria-selected="True">
+            Report Configuration
+        </a>
+    </li>
+    <!--Report Cfg-->
+    <!--Report Issue List-->
+    <li class="nav-item" role="presentation">
+        <a class="nav-link" id="report-issue-list-tab" data-bs-toggle="tab" href="#report-issue-list-content" role="tab" aria-controls="report-issue-list-content" aria-selected="False">
+            Issue List
+        </a>
+    </li>
+    <!--Report Issue List-->
+</ul>
+<!--Tabs-->
+<!--Tab Content-->
+<div class="tab-content pt-5" id="tab-content">
+    <!--Report Cfg Content-->
+    <div class="tab-pane active" id="report-cfg-tab-content" role="tabpanel" aria-labelledby="report-cfg-tab">
+        <div class="mb-3">
+            <label for="endpoint" class="form-label">Endpoint</label>
+            <div class="input-group mb-3">
+                <span class="input-group-text">https://</span>
+                <input id="endpoint" type="url" class="form-control" aria-describedby="inputGroup-sizing-default" @bind="jqlRequest.Endpoint" />
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <label for="jql-query" class="form-label">JQL</label>
+            <textarea id="jql-query" class="form-control" rows="3" @bind="jqlRequest.JqlQuery"></textarea>
+        </div>
+
+        <div class="mb-3">
+            <label for="fields" class="form-label">Fields (comma separated list)</label>
+            <input id="fields" type="text" class="form-control" @bind="jqlRequest.Fields" />
+        </div>
+
+        <div class="mb-3 mt-3">
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="expand-changelog" @bind="jqlRequest.ExpandChangeLog" />
+                <label class="form-check-label" for="expand-changelog">Expand Change Log</label>
+            </div>
+        </div>
+
+        <button class="btn btn-outline-success" @onclick="RunReport">Run</button>
+    </div>
+    <!--Report Cfg Content-->
+    <!--Report Issue List Content-->
+    <div class="tab-pane" id="report-issue-list-content" role="tabpanel" aria-labelledby="report-issue-list-tab">
+        <div class="row mb-3">
+            <div class="col-8">
+                <div class="row">
+                    <div class="col-2">
+                        <strong>Total Issues:</strong>
+                    </div>
+                    <div class="col-1">@totalIssues</div>
+
+                    <div class="col-2">
+                        <strong>Story Points:</strong>
+                    </div>
+                    <div class="col-1">@totalStoryPoints</div>
+
+                    <div class="col-2">
+                        <strong>Days Blocked:</strong>
+                    </div>
+                    <div class="col-1">@totalDaysBlocked</div>
+                </div>
+            </div>
+            
+            <div class="col-4">
+                <div class="dropdown float-end">
+                    <button class="btn btn-dark dropdown-toggle" type="button" id="dropdownMenuButton1" data-bs-toggle="dropdown" aria-expanded="false">
+                        Export
+                    </button>
+                    <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton1">
+                        <li><button class="dropdown-item" @onclick="ExportToExcel">Excel</button></li>
+                        <li><button class="dropdown-item" @onclick="ExportToCSV">CSV</button></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-2 table-header">
+            <div class="col-1">
+                ID
+            </div>
+            <div class="col-1">
+                Parent ID
+            </div>
+            <div class="col-1">
+                Priority
+            </div>
+            <div class="col-1">
+                Issue Type
+            </div>
+            <div class="col-2">
+                Status
+            </div>
+            <div class="col-2">
+                Due Date
+            </div>
+            <div class="col-2">
+                Started Date
+            </div>
+            <div class="col-1">
+                <span data-bs-toggle="tooltip" data-bs-placement="top" title="Number of days blocked">Blocked</span>
+            </div>
+            <div class="col-1">
+                <span data-bs-toggle="tooltip" data-bs-placement="top" title="Number of story Points">SP</span>
+            </div>
+        </div>
+
+        @foreach (var issue in issues)
+        {
+            <div class="@((rowCount % 2 == 0) ? "even-table-row" : "odd-table-row")">
+                <div class="row mb-2">
+                    <div class="col-1">
+                        <strong>@issue.Key</strong>
+                    </div>
+                    <div class="col-1">
+                        @issue.ParentKey
+                    </div>
+                    <div class="col-1">
+                        @issue.Priority
+                    </div>
+                    <div class="col-1">
+                        @issue.IssueType
+                    </div>
+                    <div class="col-2">
+                        @issue.Status
+                    </div>
+                    <div class="col-2">
+                        @if (issue.DueDate.HasValue)
+                        {
+                            <span>
+                                @issue.DueDate!.Value.ToString("dd MMM yyyy")
+                            </span>
+                        }
+                    </div>
+                    <div class="col-2">
+                        @if (issue.WorkStartedDate.HasValue && issue.WorkStartedDate > new DateTime(2000, 1, 1))
+                        {
+                            <span>
+                                @issue.WorkStartedDate!.Value.ToString("dd MMM yyyy")
+                            </span>
+                        }
+                        else
+                        {
+                            <span>Not Started</span>
+                        }
+                    </div>
+                    <div class="col-1">
+                        @issue.DaysInBlocked
+                    </div>
+                    <div class="col-1">
+                        @issue.StoryPoints
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-1">
+                        <strong>Summary:</strong>
+                    </div>
+                    <div class="col-11">
+                        @issue.Summary
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-1">
+                        <strong>Sprint:</strong>
+                    </div>
+                    <div class="col-11">
+                        @issue.CurrentSprint.SprintName - (@issue.CurrentSprint.StartDate.ToString("dd MMM yyyy") - @issue.CurrentSprint.EndDate.ToString("dd MMM yyyy"))
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-1">
+                        <strong>Assignee:</strong>
+                    </div>
+                    <div class="col-3">
+                        @issue.AssignedTo
+                    </div>
+                    <div class="col-2"></div>
+                    <div class="col-2">
+                        <strong>Est Completed</strong>
+                    </div>
+                    <div class="col-3">
+                        @if (issue.EstimatedDateCompleted.HasValue && issue.EstimatedDateCompleted > new DateTime(2000, 1, 1))
+                        {
+                            <span>@issue.EstimatedDateCompleted!.Value.ToString("dd MMM yyyy")</span>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            {
+                rowCount++;
+            }
+        }
+    </div>
+    <!--Report Issue List Content-->
+</div>
+<!--Tab Content-->
+<!--Toast-->
+<div class="toast-container position-absolute p-3">
+    <div id="myToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header">
+            <strong class="me-auto">Done</strong>
+            <small class="text-muted">Completed</small>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body" id="toastBody"></div>
+    </div>
+</div>
+<!--Toast-->
+
+<script type="text/javascript">
+    function showToast(message) {
+        var toast = new bootstrap.Toast(document.getElementById('myToast'));
+        document.getElementById('toastBody').innerText = message;
+        toast.show();
+    }
+</script>
+
+<script type="text/javascript">
+    window.BlazorDownloadFile = (fileName, fileBytes) => {
+        const blob = new Blob([new Uint8Array(fileBytes)], { type: "application/octet-stream" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+    };
+</script>
+
+@code {
+    JqlRequestDto jqlRequest = new JqlRequestDto();
+    List<ReportResultDto> issues = new List<ReportResultDto>();
+    public string ErrMsg { get; set; }
+    public bool ShowError { get; set; }
+    public string WarningMsg { get; set; }
+    public bool ShowWarning { get; set; }
+
+    int rowCount = 0;
+    int totalIssues = 0;
+    int totalStoryPoints = 0;
+    int totalDaysBlocked = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var uri = new Uri(_navManager.Uri);
+        var defIdString = HttpUtility.ParseQueryString(uri.Query).Get("reportDefId");
+        if (!string.IsNullOrEmpty(defIdString))
+        {
+            int.TryParse(defIdString, out int defId);
+            var reportDef = await _mediator.Send(new GetReportDefinitionByIdRequest
+            {
+                ReportDefinitionId = defId
+            });
+
+            if (reportDef.IsSuccessful)
+            {
+                jqlRequest.Endpoint = reportDef.Result.Endpoint;
+                jqlRequest.JqlQuery = reportDef.Result.JqlQuery;
+                jqlRequest.Fields = reportDef.Result.Fields;
+            }
+        }
+
+        base.OnInitialized();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        var creds = await _localStorage.GetItemAsync<CredentialsDto>("creds");
+        if (string.IsNullOrEmpty(creds.Username) || string.IsNullOrEmpty(creds.Password))
+        {
+            _navManager.NavigateTo("/");
+        }
+
+        jqlRequest.Username = creds.Username;
+        jqlRequest.Password = creds.Password;
+    }
+
+    private void ResetNotifcations()
+    {
+        ShowWarning = false;
+        ShowError = false;
+    }
+
+    private async Task RunReport()
+    {
+        ResetNotifcations();
+        try
+        {
+            if (string.IsNullOrEmpty(jqlRequest.JqlQuery))
+            {
+                ShowWarning = true;
+                WarningMsg = "You must enter a JQL statement to run for the report";
+                return;
+            }
+
+            if (string.IsNullOrEmpty(jqlRequest.Endpoint))
+            {
+                ShowWarning = true;
+                WarningMsg = "You must enter an API Endpoint for the report";
+                return;
+            }
+
+            issues = await _mediator.Send(new GetJqlResponseRequest
+                {
+                    JqlRequest = jqlRequest
+                });
+
+            await JSRuntime.InvokeVoidAsync("showToast", "Report Complete");
+
+            foreach (var issue in issues)
+            {
+                totalStoryPoints += (int)issue.StoryPoints;
+                totalDaysBlocked += issue.DaysInBlocked;
+            }
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, nameof(JqlReport));
+            ErrMsg = "An error occured during processing the report";
+            ShowError = true;
+        }
+    }
+
+    private void ResetNotifications()
+    {
+        ShowError = false;
+    }
+
+    private async Task ExportToExcel()
+    {
+        ResetNotifications();
+
+        try
+        {
+            var content = await _mediator.Send(new ExportToExcelRequest
+                {
+                    Issues = issues,
+                    Filename = "issues.xlsx"
+                });
+
+            await JSRuntime.InvokeVoidAsync("BlazorDownloadFile", "issues.xlsx", content);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, nameof(JqlReport));
+            ErrMsg = "An error occurred while exporting the issues to Excel";
+            ShowError = true;
+        }
+
+    }
+
+    private async Task ExportToCSV()
+    {
+        ResetNotifications();
+
+        try
+        {
+            var content = await _mediator.Send(new ExportToCSVRequest
+                {
+                    Filename = "issues.csv",
+                    Issues = issues
+                });
+
+            await JSRuntime.InvokeVoidAsync("BlazorDownloadFile", "issues.csv", content);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, nameof(JqlReport));
+            ErrMsg = "An error occurred while exporting the issues to a CSV file";
+            ShowError = true;
+        }
+    }
+}

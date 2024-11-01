@@ -1,0 +1,18 @@
+﻿.table-header {
+    font-weight: bold;
+    background-color: #000000;
+    color: #fffff0;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    border-radius: 10px;
+}
+
+.even-table-row {
+    background-color: #d3d3d3;
+    padding: 10px;
+}
+
+.odd-table-row {
+    background-color: #ffffff;
+    padding: 10px;
+}

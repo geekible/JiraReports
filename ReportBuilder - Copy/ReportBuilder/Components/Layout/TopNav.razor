@@ -1,0 +1,62 @@
+﻿@using MediatR
+@using ReportBuilder.Application.Mediators.ReportDefinitionMediator.Requests.Queries
+@using ReportBuilder.Domain.Dto.ReportDefinitions
+@inject IMediator _mediator
+
+<nav class="navbar navbar-expand navbar-dark bg-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="/">Report Builder</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav">
+                <li class="nav-item">
+                    <NavLink class="nav-link" href="reports/jql-report">
+                        Report Runner
+                    </NavLink>
+                </li>
+                
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownReportBuilder" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        Report Builder
+                    </a>
+                    <ul class="dropdown-menu" aria-labelledby="navbarDropdownReportBuilder">
+                        <NavLink class="dropdown-item" href="report-builder/build-jql-report">
+                            Create JQL Report
+                        </NavLink>
+                        <li><hr class="dropdown-divider"></li>
+                        @foreach (var report in reports)
+                        {
+                            var pageUrl = $"reports/jql-report?reportDefId={report.ReportDefinitionId}";
+                            <NavLink class="dropdown-item" href="@pageUrl">
+                                @report.ReportName
+                            </NavLink>
+                        }
+                    </ul>
+                </li>
+
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<div class="mb-3"></div>
+
+@code {
+    public List<ReportDefinitionsListItemDto> reports = new List<ReportDefinitionsListItemDto>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var reportDefs = await _mediator.Send(new GetAllReportDefinitionsRequest());
+            reports = reportDefs.Results;
+        }
+        catch (Exception e)
+        {
+
+        }
+    }
+
+}

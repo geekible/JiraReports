@@ -1,0 +1,212 @@
+﻿@page "/report-builder/build-jql-report"
+@using global::ReportBuilder.Domain.Dto.Jira
+@using global::ReportBuilder.Domain.Dto.ReportBuilder
+@using MediatR
+@using global::ReportBuilder.Application.Mediators.ReportDefinitionMediator.Requests.Commands
+@using global::ReportBuilder.Domain.Dto.Credentials
+@using global::ReportBuilder.Application.Mediators.FieldsMediator.Queries.Queries
+@using global::ReportBuilder.Domain.Dto.Field
+@rendermode InteractiveServer
+
+@inject Blazored.LocalStorage.ILocalStorageService _localStorage
+@inject NavigationManager _navManager
+@inject IMediator _mediator
+
+<h3>Build Jql Report</h3>
+<hr />
+
+<div class="row mb-3">
+    <div class="col-8"></div>
+    <div class="col-2"></div>
+    <div class="col-2">
+        <button class="btn btn-success float-end" @onclick="SaveReportDefinition">Save</button>
+    </div>
+</div>
+
+@if (ShowError)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <strong>Error:</strong> @ErrMsg
+        <button type="button" class="btn-close" aria-label="Close" @onclick="() => { ShowError = false; }"></button>
+    </div>
+}
+
+@if (ShowSuccess)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <strong>Saved Successfully</strong>
+        <button type="button" class="btn-close" aria-label="Close" @onclick="() => { ShowSuccess = false; }"></button>
+    </div>
+}
+
+<!--Jql Request-->
+<div class="shadow-lg p-3 mb-5 bg-body rounded">
+    <div class="mb-3">
+        <label for="report-name" class="form-label">Report Name</label>
+        <input id="report-name" class="form-control" type="text" @bind="reportDefinition.ReportName"/>
+    </div>
+
+    <div class="mb-3">
+        <label for="endpoint" class="form-label">Endpoint</label>
+        <div class="input-group mb-3">
+            <span class="input-group-text">https://</span>
+            <input id="endpoint" type="url" class="form-control" aria-describedby="inputGroup-sizing-default" @bind="reportDefinition.Endpoint"/>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label for="jql-query" class="form-label">JQL</label>
+        <textarea id="jql-query" class="form-control" rows="3" @bind="reportDefinition.JqlQuery"></textarea>
+    </div>
+
+    <div class="mb-3">
+        <label for="fields" class="form-label">Fields (comma separated list)</label>
+        <input id="fields" type="text" class="form-control" @bind="reportDefinition.Fields"/>
+    </div>
+
+    <div class="mb-3 mt-3">
+        <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="expand-changelog" @bind="reportDefinition.ExpandChangeLog"/>
+            <label class="form-check-label" for="expand-changelog">Expand Change Log</label>
+        </div>
+    </div>
+</div>
+<!--Jql Request-->
+<!--Fields-->
+<div class="shadow-lg p-3 mb-5 bg-body rounded">
+    <div class="row">
+        <div class="col-lg-5 p-3 col-sm-12">
+            <ul class="list-group">
+                <li class="list-group-item active">Available Fields</li>
+                @foreach (var field in availableFields.OrderBy(o => o.FieldAlias))
+                {
+                    <li class="list-group-item">
+                        <div class="row">
+                            <div class="col-9">
+                                @field.FieldAlias
+                            </div>
+                            <div class="col-3">
+                                <button class="btn btn-sm btn-outline-success float-end" @onclick="() => AddField(field)">Add</button>
+                            </div>
+                        </div>
+                    </li>
+                }
+            </ul>
+        </div>
+
+        <div class="col-2"></div>
+
+        <div class="col-lg-5 p-3 col-sm-12">
+            <ul class="list-group">
+                <li class="list-group-item active">Available Fields</li>
+                @foreach (var field in selectedFields.OrderBy(o => o.FieldAlias))
+                {
+                    <li class="list-group-item">
+                        <div class="row">
+                            <div class="col-3">
+                                <button class="btn btn-sm btn-outline-danger" @onclick="() => RemoveField(field)">Remove</button>
+                            </div>
+                            <div class="col-9">
+                                @field.FieldName
+                            </div>
+                        </div>
+                    </li>
+                }
+            </ul>
+        </div>
+    </div>
+</div>
+<!--Fields-->
+@code {
+    ReportDefinitionDto reportDefinition = new ReportDefinitionDto();
+    List<FieldDto> availableFields = new List<FieldDto>();
+    List<FieldDto> selectedFields = new List<FieldDto>();
+
+    CredentialsDto creds = new CredentialsDto();
+
+    public string ErrMsg { get; set; }
+    public bool ShowError { get; set; }
+    public bool ShowSuccess { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var results = await _mediator.Send(new GetAllFieldsRequest());
+        if (results.IsSuccessful)
+        {
+            availableFields = results.Results;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        creds = await _localStorage.GetItemAsync<CredentialsDto>("creds");
+        if (string.IsNullOrEmpty(creds.Username) || string.IsNullOrEmpty(creds.Password))
+        {
+            _navManager.NavigateTo("/");
+        }
+    }
+
+    private void AddField(FieldDto field)
+    {
+        if (!selectedFields.Contains(field))
+        {
+            selectedFields.Add(field);
+            availableFields.Remove(field);
+            if (string.IsNullOrEmpty(reportDefinition.Fields))
+            {
+                reportDefinition.Fields = field.FieldName;
+            }
+            else
+            {
+                reportDefinition.Fields += $", {field.FieldName}";
+            }
+        }
+    }
+
+    private void RemoveField(FieldDto field)
+    {
+        availableFields.Add(field);
+        selectedFields.Remove(field);
+        reportDefinition.Fields = reportDefinition.Fields.Replace(field.FieldName, string.Empty);
+        reportDefinition.Fields = reportDefinition.Fields.Replace(", ,", ",");
+
+        reportDefinition.Fields = reportDefinition.Fields.Trim().TrimEnd(',');
+    }
+
+    private async Task SaveReportDefinition()
+    {
+        if (reportDefinition.Id == 0)
+        {
+            reportDefinition.CreatedBy = creds.Username;
+        }
+
+        reportDefinition.LastModifiedBy = creds.Username;
+
+        var result = await _mediator.Send(new SaveReportDefinitionRequest
+        {
+            ReportDefinition = reportDefinition
+        });
+
+        if (result.IsSuccessful)
+        {
+            reportDefinition.Id = result.EntityId;
+            ShowSuccess = true;
+        }
+        else
+        {
+            ShowError = true;
+            if (result.ValidationErrors != null)
+            {
+                foreach (var error in result.ValidationErrors)
+                {
+                    ErrMsg += $"{error}\n";
+                }
+            }
+            else
+            {
+                ErrMsg = result.Exception.Message;
+            }
+        }
+    }
+
+}

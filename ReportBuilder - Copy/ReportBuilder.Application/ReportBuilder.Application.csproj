@@ -1,0 +1,35 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Folder Include="Mediators\FieldsMediator\Handlers\Commands\" />
+    <Folder Include="Mediators\FieldsMediator\Handlers\Queries\" />
+    <Folder Include="Mediators\FieldsMediator\Queries\Commands\" />
+    <Folder Include="Mediators\FieldsMediator\Queries\Queries\" />
+    <Folder Include="Mediators\JqlReportMediator\Handlers\Commands\" />
+    <Folder Include="Mediators\JqlReportMediator\Handlers\Queries\" />
+    <Folder Include="Mediators\JqlReportMediator\Requests\Commands\" />
+    <Folder Include="Extensions\" />
+    <Folder Include="Mediators\ReportDefinitionMediator\Handlers\Queries\" />
+    <Folder Include="Mediators\ReportExportMediator\Handlers\Commands\" />
+    <Folder Include="Mediators\ReportExportMediator\Handlers\Queries\" />
+    <Folder Include="Mediators\ReportExportMediator\Requests\Queries\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AutoMapper" Version="13.0.1" />
+    <PackageReference Include="MediatR" Version="12.4.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ReportBuilder.Domain\ReportBuilder.Domain.csproj" />
+    <ProjectReference Include="..\ReportBuilder.Infrastructure.DataAccess\ReportBuilder.Infrastructure.DataAccess.csproj" />
+    <ProjectReference Include="..\ReportBuilder.Infrastructure\ReportBuilder.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>
